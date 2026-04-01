@@ -1,0 +1,21 @@
+# terraform.tfvars.example
+# Copy to terraform.tfvars — never commit the real file to Git.
+
+environment    = "dev"
+replica_count  = 2
+bucket_name    = "anti-load-shedding-state-assets"
+project_name   = "anti-load-shedding"
+primary_region = "af-south-1"
+standby_region = "eu-west-1"
+
+# Restrict SSH to your corporate egress IP only.
+# Leave empty to disable SSH entirely (SSM is preferred).
+allowed_cidr_blocks = []
+
+enable_arc = true
+
+tags = {
+  Owner      = "your-name"
+  CostCenter = "resilience-backbone"
+  Repo       = "AI-Integrated-Resilience-Multi-Region-AWS-Failover-with-MCP-Tooling"
+}

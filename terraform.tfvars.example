@@ -1,0 +1,18 @@
+# terraform.tfvars.example
+# Copy to terraform.tfvars and fill in your values.
+# Never commit terraform.tfvars to version control — add it to .gitignore.
+
+environment       = "dev"
+replica_count     = 2
+bucket_name       = "my-resilience-state-assets"
+project_name      = "resilience-backbone"
+ec2_instance_type = "t3.micro"
+
+# Restrict ingress to your office IP for dev; remove for prod (Route 53 handles it)
+allowed_cidr_blocks = ["41.XXX.XXX.XXX/32"]
+
+tags = {
+  Owner       = "platform-team"
+  CostCentre  = "infrastructure"
+  Compliance  = "iso27001"
+}
