@@ -13,8 +13,14 @@ An AI agent can ask:
 Usage:
   python server.py
 
+Optional Vault (KV v2): if VAULT_ADDR is set, secrets are read from
+  mount VAULT_KV_MOUNT (default: secret) at path VAULT_KV_PATH (default: resilience/mcp).
+  Token: VAULT_TOKEN, or ~/.vault-token (written by `vault login`).
+  Any environment variable listed below that is *unset* can be supplied from Vault
+  using the same key names (e.g. cluster_arn, primary_vpc_id).
+
 Requirements:
-  pip install mcp boto3 pydantic
+  pip install -r requirements.txt
 """
 
 import json
@@ -37,17 +43,88 @@ logging.basicConfig(
 )
 log = logging.getLogger("arc-mcp-server")
 
-# ── Configuration (override via environment variables) ─────────────────────────
-CONFIG = {
-    "primary_region":              os.environ.get("PRIMARY_REGION", "af-south-1"),
-    "failover_region":             os.environ.get("FAILOVER_REGION", "eu-west-1"),
-    "arc_control_plane_region":    "us-west-2",  # ARC is always in us-west-2
-    "cluster_arn":                 os.environ.get("ARC_CLUSTER_ARN", ""),
-    "primary_routing_control_arn": os.environ.get("PRIMARY_ROUTING_CONTROL_ARN", ""),
-    "failover_routing_control_arn":os.environ.get("FAILOVER_ROUTING_CONTROL_ARN", ""),
-    "primary_vpc_id":              os.environ.get("PRIMARY_VPC_ID", ""),
-    "failover_vpc_id":             os.environ.get("FAILOVER_VPC_ID", ""),
-}
+# ── Configuration: env overrides Vault; unset env keys may load from Vault ───
+_CONFIG_FIELDS: tuple[tuple[str, str, str], ...] = (
+    ("primary_region", "PRIMARY_REGION", "af-south-1"),
+    ("failover_region", "FAILOVER_REGION", "eu-west-1"),
+    ("cluster_arn", "ARC_CLUSTER_ARN", ""),
+    ("primary_routing_control_arn", "PRIMARY_ROUTING_CONTROL_ARN", ""),
+    ("failover_routing_control_arn", "FAILOVER_ROUTING_CONTROL_ARN", ""),
+    ("primary_vpc_id", "PRIMARY_VPC_ID", ""),
+    ("failover_vpc_id", "FAILOVER_VPC_ID", ""),
+)
+
+
+def _vault_token() -> str | None:
+    t = os.environ.get("VAULT_TOKEN")
+    if t:
+        return t.strip()
+    path = os.path.expanduser(os.environ.get("VAULT_TOKEN_PATH", "~/.vault-token"))
+    try:
+        with open(os.path.expanduser(path), encoding="utf-8") as f:
+            return f.read().strip()
+    except OSError:
+        return None
+
+
+def _read_vault_kv() -> dict[str, Any]:
+    """
+    Read KV v2 secret when VAULT_ADDR is set. Returns {} on skip or recoverable errors.
+    Vault keys should match CONFIG field names (e.g. cluster_arn).
+    """
+    addr = os.environ.get("VAULT_ADDR", "").strip()
+    if not addr:
+        return {}
+
+    try:
+        import hvac
+    except ImportError:
+        log.warning("VAULT_ADDR is set but hvac is not installed; run: pip install hvac")
+        return {}
+
+    token = _vault_token()
+    if not token:
+        log.warning("VAULT_ADDR is set but no token (VAULT_TOKEN or ~/.vault-token); skipping Vault")
+        return {}
+
+    mount = os.environ.get("VAULT_KV_MOUNT", "secret").strip().strip("/")
+    path = os.environ.get("VAULT_KV_PATH", "resilience/mcp").strip().strip("/")
+
+    try:
+        client = hvac.Client(url=addr, token=token)
+        if not client.is_authenticated():
+            log.warning("Vault token rejected or expired; skipping Vault")
+            return {}
+        resp = client.secrets.kv.v2.read_secret_version(mount_point=mount, path=path)
+        return dict(resp.get("data", {}).get("data", {}) or {})
+    except Exception as e:
+        log.warning("Could not read Vault KV at %s/%s: %s", mount, path, e)
+        return {}
+
+
+def build_config() -> dict[str, Any]:
+    cfg: dict[str, Any] = {"arc_control_plane_region": "us-west-2"}
+    vault_data = _read_vault_kv()
+    filled_from_vault: list[str] = []
+
+    for field, env_name, default in _CONFIG_FIELDS:
+        if env_name in os.environ:
+            cfg[field] = os.environ[env_name]
+            continue
+        v = vault_data.get(field)
+        if v is not None and str(v).strip() != "":
+            cfg[field] = str(v).strip()
+            filled_from_vault.append(field)
+        else:
+            cfg[field] = default
+
+    if filled_from_vault:
+        log.info("Loaded from Vault (KV): %s", ", ".join(sorted(filled_from_vault)))
+
+    return cfg
+
+
+CONFIG = build_config()
 
 # ── AWS Client Factory ─────────────────────────────────────────────────────────
 def get_client(service: str, region: str):
