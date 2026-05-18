@@ -104,3 +104,31 @@ variable "tags" {
     error_message = "AWS enforces a maximum of 50 tags per resource."
   }
 }
+
+variable "acm_certificate_arn" {
+  description = "ACM certificate ARN for regional ALB HTTPS listeners; empty uses HTTP :80"
+  type        = string
+  default     = ""
+}
+
+variable "use_localstack" {
+  description = "Target LocalStack instead of real AWS (disables ARC and cross-region S3 replication)"
+  type        = bool
+  default     = false
+}
+
+variable "localstack_endpoint" {
+  description = "LocalStack gateway URL when use_localstack is true"
+  type        = string
+  default     = "http://127.0.0.1:4566"
+}
+
+variable "enable_alb" {
+  description = "Create ALB + target groups. Auto-disabled on LocalStack (Community has no ELBv2)."
+  type        = bool
+  default     = null
+}
+
+locals {
+  enable_alb = coalesce(var.enable_alb, !var.use_localstack)
+}

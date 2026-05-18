@@ -8,6 +8,9 @@ bucket_name       = "my-resilience-state-assets"
 project_name      = "resilience-backbone"
 ec2_instance_type = "t3.micro"
 
+# Optional: ACM cert ARN in af-south-1 / eu-west-1 for HTTPS ALB listeners
+# acm_certificate_arn = ""
+
 # Restrict ingress to your office IP for dev; remove for prod (Route 53 handles it)
 allowed_cidr_blocks = ["41.XXX.XXX.XXX/32"]
 

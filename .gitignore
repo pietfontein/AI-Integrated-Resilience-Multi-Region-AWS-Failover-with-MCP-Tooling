@@ -1,0 +1,35 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfplan.*
+tfplan.*
+tfplan.localstack
+terraform.tfvars
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Secrets & local artifacts
+outputs.json
+.env
+*.pem
+infracost.zip
+config/backend.aws.hcl
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

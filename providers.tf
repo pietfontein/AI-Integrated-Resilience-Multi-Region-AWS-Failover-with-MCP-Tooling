@@ -1,10 +1,9 @@
 ################################################################################
 # providers.tf — Dual-Region Provider Configuration
-# Two providers, one goal: no single point of failure.
 ################################################################################
 
 terraform {
-  required_version = ">= 1.6.0"
+  required_version = ">= 1.10.0"
 
   required_providers {
     aws = {
@@ -13,20 +12,38 @@ terraform {
     }
   }
 
-  # Remote state — encrypted, versioned, region-agnostic
-  backend "s3" {
-    bucket         = "tf-state-resilience-backbone"
-    key            = "global/terraform.tfstate"
-    region         = "af-south-1"
-    encrypt        = true
-    dynamodb_table = "tf-state-lock"
-  }
+  # Real AWS: terraform init -backend-config=config/backend.aws.hcl
+  # LocalStack: terraform init -backend-config=config/backend.localstack.hcl
+  backend "s3" {}
 }
 
-# ── Primary: Cape Town — where the load is served ────────────────────────────
 provider "aws" {
   alias  = "cape_town"
   region = var.primary_region
+
+  access_key = var.use_localstack ? "test" : null
+  secret_key = var.use_localstack ? "test" : null
+
+  s3_use_path_style           = var.use_localstack
+  skip_credentials_validation = var.use_localstack
+  skip_metadata_api_check     = var.use_localstack
+  skip_requesting_account_id  = var.use_localstack
+
+  dynamic "endpoints" {
+    for_each = var.use_localstack ? [var.localstack_endpoint] : []
+    content {
+      apigateway = endpoints.value
+      dynamodb   = endpoints.value
+      ec2        = endpoints.value
+      elb        = endpoints.value
+      elbv2      = endpoints.value
+      iam        = endpoints.value
+      route53    = endpoints.value
+      s3         = endpoints.value
+      sts        = endpoints.value
+      ssm        = endpoints.value
+    }
+  }
 
   default_tags {
     tags = merge(var.tags, {
@@ -38,10 +55,33 @@ provider "aws" {
   }
 }
 
-# ── Failover: Ireland — the silent standby ────────────────────────────────────
 provider "aws" {
   alias  = "ireland"
   region = var.failover_region
+
+  access_key = var.use_localstack ? "test" : null
+  secret_key = var.use_localstack ? "test" : null
+
+  s3_use_path_style           = var.use_localstack
+  skip_credentials_validation = var.use_localstack
+  skip_metadata_api_check     = var.use_localstack
+  skip_requesting_account_id  = var.use_localstack
+
+  dynamic "endpoints" {
+    for_each = var.use_localstack ? [var.localstack_endpoint] : []
+    content {
+      apigateway = endpoints.value
+      dynamodb   = endpoints.value
+      ec2        = endpoints.value
+      elb        = endpoints.value
+      elbv2      = endpoints.value
+      iam        = endpoints.value
+      route53    = endpoints.value
+      s3         = endpoints.value
+      sts        = endpoints.value
+      ssm        = endpoints.value
+    }
+  }
 
   default_tags {
     tags = merge(var.tags, {
@@ -53,10 +93,33 @@ provider "aws" {
   }
 }
 
-# ── Route 53 ARC requires us-west-2 — non-negotiable AWS constraint ───────────
 provider "aws" {
   alias  = "arc_control_plane"
   region = "us-west-2"
+
+  access_key = var.use_localstack ? "test" : null
+  secret_key = var.use_localstack ? "test" : null
+
+  s3_use_path_style           = var.use_localstack
+  skip_credentials_validation = var.use_localstack
+  skip_metadata_api_check     = var.use_localstack
+  skip_requesting_account_id  = var.use_localstack
+
+  dynamic "endpoints" {
+    for_each = var.use_localstack ? [var.localstack_endpoint] : []
+    content {
+      apigateway = endpoints.value
+      dynamodb   = endpoints.value
+      ec2        = endpoints.value
+      elb        = endpoints.value
+      elbv2      = endpoints.value
+      iam        = endpoints.value
+      route53    = endpoints.value
+      s3         = endpoints.value
+      sts        = endpoints.value
+      ssm        = endpoints.value
+    }
+  }
 
   default_tags {
     tags = merge(var.tags, {

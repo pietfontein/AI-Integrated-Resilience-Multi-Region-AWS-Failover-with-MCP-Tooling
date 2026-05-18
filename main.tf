@@ -12,18 +12,20 @@ module "primary_stack" {
     aws = aws.cape_town
   }
 
-  project_name      = var.project_name
-  environment       = var.environment
-  region_label      = "primary"
-  region_name       = var.primary_region
-  replica_count     = var.replica_count
-  instance_type     = var.ec2_instance_type
-  bucket_name       = "${var.bucket_name}-primary"
+  project_name        = var.project_name
+  environment         = var.environment
+  region_label        = "primary"
+  region_name         = var.primary_region
+  replica_count       = var.replica_count
+  instance_type       = var.ec2_instance_type
+  bucket_name         = "${var.bucket_name}-primary"
   allowed_cidr_blocks = var.allowed_cidr_blocks
+  certificate_arn     = var.acm_certificate_arn
+  enable_alb          = local.enable_alb
 
   # VPC CIDR split: primary owns 10.0.0.0/16, failover owns 10.1.0.0/16
   # Non-overlapping so we can peer them later for replication traffic
-  vpc_cidr           = "10.0.0.0/16"
+  vpc_cidr             = "10.0.0.0/16"
   public_subnet_cidrs  = ["10.0.1.0/24", "10.0.2.0/24"]
   private_subnet_cidrs = ["10.0.10.0/24", "10.0.11.0/24"]
 
@@ -38,16 +40,18 @@ module "failover_stack" {
     aws = aws.ireland
   }
 
-  project_name      = var.project_name
-  environment       = var.environment
-  region_label      = "failover"
-  region_name       = var.failover_region
-  replica_count     = var.replica_count
-  instance_type     = var.ec2_instance_type
-  bucket_name       = "${var.bucket_name}-failover"
+  project_name        = var.project_name
+  environment         = var.environment
+  region_label        = "failover"
+  region_name         = var.failover_region
+  replica_count       = var.replica_count
+  instance_type       = var.ec2_instance_type
+  bucket_name         = "${var.bucket_name}-failover"
   allowed_cidr_blocks = var.allowed_cidr_blocks
+  certificate_arn     = var.acm_certificate_arn
+  enable_alb          = local.enable_alb
 
-  vpc_cidr           = "10.1.0.0/16"
+  vpc_cidr             = "10.1.0.0/16"
   public_subnet_cidrs  = ["10.1.1.0/24", "10.1.2.0/24"]
   private_subnet_cidrs = ["10.1.10.0/24", "10.1.11.0/24"]
 
@@ -57,9 +61,10 @@ module "failover_stack" {
 # ── S3 Cross-Region Replication: Cape Town → Ireland ─────────────────────────
 # State assets are continuously replicated so failover has warm data on day 0.
 resource "aws_s3_bucket_replication_configuration" "state_replication" {
+  count    = var.use_localstack ? 0 : 1
   provider = aws.cape_town
   bucket   = module.primary_stack.state_bucket_id
-  role     = aws_iam_role.replication_role.arn
+  role     = aws_iam_role.replication_role[0].arn
 
   rule {
     id     = "replicate-all-to-ireland"
@@ -85,6 +90,7 @@ resource "aws_s3_bucket_replication_configuration" "state_replication" {
 
 # ── IAM Role for S3 Replication (Least Privilege) ────────────────────────────
 resource "aws_iam_role" "replication_role" {
+  count    = var.use_localstack ? 0 : 1
   provider = aws.cape_town
   name     = "${var.project_name}-s3-replication-role"
 
@@ -99,9 +105,10 @@ resource "aws_iam_role" "replication_role" {
 }
 
 resource "aws_iam_role_policy" "replication_policy" {
+  count    = var.use_localstack ? 0 : 1
   provider = aws.cape_town
   name     = "s3-replication-least-privilege"
-  role     = aws_iam_role.replication_role.id
+  role     = aws_iam_role.replication_role[0].id
 
   policy = jsonencode({
     Version = "2012-10-17"

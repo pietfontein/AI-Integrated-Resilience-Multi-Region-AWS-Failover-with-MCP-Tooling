@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "arc-failover-assistant": {
+      "command": "python",
+      "args": ["mcp_server/server.py"],
+      "env": {
+        "PRIMARY_REGION": "af-south-1",
+        "FAILOVER_REGION": "eu-west-1",
+        "ARC_CLUSTER_ARN": "<terraform output -raw arc_cluster_arn>",
+        "PRIMARY_ROUTING_CONTROL_ARN": "<terraform output -raw primary_routing_control_arn>",
+        "FAILOVER_ROUTING_CONTROL_ARN": "<terraform output -raw failover_routing_control_arn>",
+        "PRIMARY_VPC_ID": "<terraform output -raw primary_vpc_id>",
+        "FAILOVER_VPC_ID": "<terraform output -raw failover_vpc_id>"
+      }
+    }
+  }
+}

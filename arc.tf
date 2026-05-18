@@ -1,45 +1,42 @@
 ################################################################################
-# arc.tf — Route 53 Application Recovery Controller
-# Digital circuit breakers for zero-touch regional failover.
-# ARC control plane MUST live in us-west-2 (AWS constraint).
+# arc.tf — Route 53 ARC (real AWS only; skipped when use_localstack = true)
 ################################################################################
 
-# ── The Cluster: global control plane for failover decisions ──────────────────
 resource "aws_route53recoverycontrolconfig_cluster" "resilience_cluster" {
+  count    = var.use_localstack ? 0 : 1
   provider = aws.arc_control_plane
   name     = "${var.project_name}-anti-load-shedding-cluster"
 }
 
-# ── Control Panel: groups our regional routing switches ───────────────────────
 resource "aws_route53recoverycontrolconfig_control_panel" "main_panel" {
+  count       = var.use_localstack ? 0 : 1
   provider    = aws.arc_control_plane
-  cluster_arn = aws_route53recoverycontrolconfig_cluster.resilience_cluster.arn
+  cluster_arn = aws_route53recoverycontrolconfig_cluster.resilience_cluster[0].arn
   name        = "RegionalFailoverPanel"
 }
 
-# ── Routing Control: the ON/OFF switch for Cape Town (Primary) ─────────────────
 resource "aws_route53recoverycontrolconfig_routing_control" "primary_switch" {
+  count             = var.use_localstack ? 0 : 1
   provider          = aws.arc_control_plane
-  cluster_arn       = aws_route53recoverycontrolconfig_cluster.resilience_cluster.arn
-  control_panel_arn = aws_route53recoverycontrolconfig_control_panel.main_panel.arn
+  cluster_arn       = aws_route53recoverycontrolconfig_cluster.resilience_cluster[0].arn
+  control_panel_arn = aws_route53recoverycontrolconfig_control_panel.main_panel[0].arn
   name              = "PrimaryRegionActive"
 }
 
-# ── Routing Control: the ON/OFF switch for Ireland (Failover) ─────────────────
 resource "aws_route53recoverycontrolconfig_routing_control" "failover_switch" {
+  count             = var.use_localstack ? 0 : 1
   provider          = aws.arc_control_plane
-  cluster_arn       = aws_route53recoverycontrolconfig_cluster.resilience_cluster.arn
-  control_panel_arn = aws_route53recoverycontrolconfig_control_panel.main_panel.arn
+  cluster_arn       = aws_route53recoverycontrolconfig_cluster.resilience_cluster[0].arn
+  control_panel_arn = aws_route53recoverycontrolconfig_control_panel.main_panel[0].arn
   name              = "FailoverRegionActive"
 }
 
-# ── Safety Rule: enforce that exactly ONE region is active at all times ───────
-# This is the "no split-brain" guarantee. ARC will block invalid state changes.
 resource "aws_route53recoverycontrolconfig_safety_rule" "one_region_active" {
+  count             = var.use_localstack ? 0 : 1
   provider          = aws.arc_control_plane
-  control_panel_arn = aws_route53recoverycontrolconfig_control_panel.main_panel.arn
+  control_panel_arn = aws_route53recoverycontrolconfig_control_panel.main_panel[0].arn
   name              = "OneRegionMustBeActive"
-  wait_period_ms    = 5000 # 5s minimum transition window — prevents flapping
+  wait_period_ms    = 5000
 
   rule_config {
     inverted  = false
@@ -48,13 +45,13 @@ resource "aws_route53recoverycontrolconfig_safety_rule" "one_region_active" {
   }
 
   asserted_controls = [
-    aws_route53recoverycontrolconfig_routing_control.primary_switch.arn,
-    aws_route53recoverycontrolconfig_routing_control.failover_switch.arn,
+    aws_route53recoverycontrolconfig_routing_control.primary_switch[0].arn,
+    aws_route53recoverycontrolconfig_routing_control.failover_switch[0].arn,
   ]
 }
 
-# ── Route 53 Hosted Zone (replace with your actual domain) ───────────────────
 resource "aws_route53_zone" "app_zone" {
+  count    = var.use_localstack ? 0 : 1
   provider = aws.arc_control_plane
   name     = "${var.project_name}.example.com"
 
@@ -63,11 +60,11 @@ resource "aws_route53_zone" "app_zone" {
   }
 }
 
-# ── Health Check wired to the Primary ARC routing control ─────────────────────
 resource "aws_route53_health_check" "primary_arc" {
-  provider                        = aws.arc_control_plane
-  type                            = "RECOVERY_CONTROL"
-  routing_control_arn             = aws_route53recoverycontrolconfig_routing_control.primary_switch.arn
+  count               = var.use_localstack ? 0 : 1
+  provider            = aws.arc_control_plane
+  type                = "RECOVERY_CONTROL"
+  routing_control_arn = aws_route53recoverycontrolconfig_routing_control.primary_switch[0].arn
 
   tags = {
     Name   = "primary-arc-health-check"
@@ -75,11 +72,11 @@ resource "aws_route53_health_check" "primary_arc" {
   }
 }
 
-# ── Health Check wired to the Failover ARC routing control ────────────────────
 resource "aws_route53_health_check" "failover_arc" {
-  provider                        = aws.arc_control_plane
-  type                            = "RECOVERY_CONTROL"
-  routing_control_arn             = aws_route53recoverycontrolconfig_routing_control.failover_switch.arn
+  count               = var.use_localstack ? 0 : 1
+  provider            = aws.arc_control_plane
+  type                = "RECOVERY_CONTROL"
+  routing_control_arn = aws_route53recoverycontrolconfig_routing_control.failover_switch[0].arn
 
   tags = {
     Name   = "failover-arc-health-check"
@@ -87,10 +84,10 @@ resource "aws_route53_health_check" "failover_arc" {
   }
 }
 
-# ── DNS Record: PRIMARY (Cape Town) — serves traffic when switch is ON ────────
 resource "aws_route53_record" "primary" {
+  count    = var.use_localstack ? 0 : 1
   provider = aws.arc_control_plane
-  zone_id  = aws_route53_zone.app_zone.zone_id
+  zone_id  = aws_route53_zone.app_zone[0].zone_id
   name     = "app.${var.project_name}.example.com"
   type     = "A"
 
@@ -99,7 +96,7 @@ resource "aws_route53_record" "primary" {
   }
 
   set_identifier  = "primary-cape-town"
-  health_check_id = aws_route53_health_check.primary_arc.id
+  health_check_id = aws_route53_health_check.primary_arc[0].id
 
   alias {
     name                   = module.primary_stack.alb_dns_name
@@ -108,10 +105,10 @@ resource "aws_route53_record" "primary" {
   }
 }
 
-# ── DNS Record: FAILOVER (Ireland) — promoted when primary switch flips OFF ───
 resource "aws_route53_record" "failover" {
+  count    = var.use_localstack ? 0 : 1
   provider = aws.arc_control_plane
-  zone_id  = aws_route53_zone.app_zone.zone_id
+  zone_id  = aws_route53_zone.app_zone[0].zone_id
   name     = "app.${var.project_name}.example.com"
   type     = "A"
 
@@ -120,7 +117,7 @@ resource "aws_route53_record" "failover" {
   }
 
   set_identifier  = "failover-ireland"
-  health_check_id = aws_route53_health_check.failover_arc.id
+  health_check_id = aws_route53_health_check.failover_arc[0].id
 
   alias {
     name                   = module.failover_stack.alb_dns_name

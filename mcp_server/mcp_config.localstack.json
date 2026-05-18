@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "arc-failover-assistant": {
+      "command": "python",
+      "args": ["mcp_server/server.py"],
+      "env": {
+        "AWS_ENDPOINT_URL": "http://127.0.0.1:4566",
+        "AWS_ACCESS_KEY_ID": "test",
+        "AWS_SECRET_ACCESS_KEY": "test",
+        "LOCALSTACK_DEV": "1",
+        "PRIMARY_REGION": "af-south-1",
+        "FAILOVER_REGION": "eu-west-1",
+        "PRIMARY_VPC_ID": "<terraform output -raw primary_vpc_id>",
+        "FAILOVER_VPC_ID": "<terraform output -raw failover_vpc_id>"
+      }
+    }
+  }
+}

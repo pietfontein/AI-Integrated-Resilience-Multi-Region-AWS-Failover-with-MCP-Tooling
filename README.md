@@ -2,7 +2,7 @@
 
 > **Built for South African engineers who refuse to let load shedding win.**
 
-[![Terraform](https://img.shields.io/badge/Terraform-%3E%3D1.6-purple?logo=terraform)](https://terraform.io)
+[![Terraform](https://img.shields.io/badge/Terraform-%3E%3D1.10-purple?logo=terraform)](https://terraform.io)
 [![AWS](https://img.shields.io/badge/AWS-Multi--Region-orange?logo=amazonaws)](https://aws.amazon.com)
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue?logo=python)](https://python.org)
 [![MCP](https://img.shields.io/badge/MCP-AI--Native-green)](https://modelcontextprotocol.io)
@@ -104,7 +104,7 @@ This project applies a **defence-in-depth** model. Every resource is hardened:
 |---|---|
 | Input validation | `validation {}` blocks on all Terraform variables — fail-closed |
 | IMDSv2 enforced | `http_tokens = "required"` — IMDSv1 disabled on all EC2 |
-| Encrypted storage | S3: `aws:kms` SSE. EC2 root volumes: `encrypted = true` |
+| Encrypted storage | S3: `AES256` SSE by default. EC2 root volumes: `encrypted = true` |
 | No public IPs | Instances in private subnets only. ALB is the only public endpoint |
 | Least-privilege IAM | EC2 role: SSM only. S3 replication role: scoped to specific buckets |
 | No bastion hosts | SSM Session Manager for shell access — no SSH keys in production |
@@ -135,10 +135,10 @@ prowler aws -r af-south-1 -M json,html
 
 ### Prerequisites
 
-- Terraform >= 1.6
+- Terraform >= 1.10
 - AWS CLI configured with credentials for both regions
 - Python 3.11+ (for MCP server)
-- An S3 bucket + DynamoDB table for Terraform remote state (create once manually)
+- An S3 bucket for Terraform remote state with native S3 lockfile support
 
 ### Step 1 — Configure Variables
 
@@ -150,7 +150,8 @@ cp terraform.tfvars.example terraform.tfvars
 ### Step 2 — Initialise and Validate
 
 ```bash
-terraform init
+cp config/backend.aws.example.hcl config/backend.aws.hcl
+terraform init -backend-config=config/backend.aws.hcl
 terraform validate   # Catches syntax errors before any AWS call
 terraform fmt -recursive
 ```

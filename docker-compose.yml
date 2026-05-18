@@ -1,0 +1,23 @@
+# Pin image tag — avoid :latest pull flakes on Windows. Override: LOCALSTACK_IMAGE=localstack/localstack:4.4.0
+services:
+  localstack:
+    image: ${LOCALSTACK_IMAGE:-localstack/localstack:4.4.0}
+    container_name: resilience-localstack
+    ports:
+      - "127.0.0.1:4566:4566"
+    environment:
+      SERVICES: s3,dynamodb,ec2,iam,route53,sts,logs
+      DEBUG: "0"
+      PERSISTENCE: "1"
+      DEFAULT_REGION: af-south-1
+    volumes:
+      - localstack-data:/var/lib/localstack
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:4566/_localstack/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 18
+      start_period: 20s
+
+volumes:
+  localstack-data:
